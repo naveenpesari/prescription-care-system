@@ -3,7 +3,8 @@ from models import db, Medicine
 import os
 import pytesseract
 from PIL import Image
-from matcher import find_best_match
+from matcher import find_best_match, extract_candidate_words
+from parser import parse_dosage_info
 
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
@@ -36,18 +37,38 @@ def upload():
     all_medicines = Medicine.query.all()
     medicine_names = [m.name for m in all_medicines]
 
-    # Break OCR text into words/lines, clean them up
-    words = extracted_text.split('\n')
-    words = [w.strip() for w in words if len(w.strip()) > 3]  # ignore very short junk
+    # Break OCR text into lines, clean them up
+    lines = extracted_text.split('\n')
+    lines = [l.strip() for l in lines if len(l.strip()) > 3]
 
-    # Try matching each line/word against our medicine list
+    # Try matching each line against our medicine list, and parse dosage info
     matches_found = []
     seen = set()
 
-    for word in words:
-        best_match, distance, confidence = find_best_match(word, medicine_names)
-        if confidence >= 0.6 and best_match not in seen:  # only good matches
-            matches_found.append((word, best_match, confidence))
+    for line in lines:
+        candidates = extract_candidate_words(line)
+        best_overall_match = None
+        best_overall_confidence = 0
+
+        for candidate in candidates:
+            best_match, distance, confidence = find_best_match(candidate, medicine_names)
+            if confidence > best_overall_confidence:
+                best_overall_confidence = confidence
+                best_overall_match = best_match
+
+        best_match = best_overall_match
+        confidence = best_overall_confidence
+
+        if confidence >= 0.6 and best_match not in seen:
+            dosage_info = parse_dosage_info(line)
+            matches_found.append({
+                "original": line,
+                "matched": best_match,
+                "confidence": confidence,
+                "frequency": dosage_info["frequency"],
+                "food_timing": dosage_info["food_timing"],
+                "duration_days": dosage_info["duration_days"]
+            })
             seen.add(best_match)
 
     return render_template('result.html',

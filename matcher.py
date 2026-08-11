@@ -48,3 +48,19 @@ def find_best_match(ocr_word, medicine_list):
     confidence = 1 - (best_distance / max_len) if max_len > 0 else 0
 
     return best_match, best_distance, round(confidence, 2)
+
+
+def extract_candidate_words(line):
+    """
+    Extracts the first 1-2 words from a line, which is where
+    medicine names usually appear in prescriptions.
+    """
+    words = line.strip().split()
+    candidates = []
+
+    if len(words) >= 1:
+        candidates.append(words[0])  # just first word
+    if len(words) >= 2:
+        candidates.append(words[0] + " " + words[1])  # first two words
+
+    return candidates

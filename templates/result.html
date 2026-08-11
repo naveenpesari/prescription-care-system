@@ -10,12 +10,17 @@
     <h2>Detected Medicines:</h2>
     {% if matches %}
         <ul>
-        {% for original, matched, confidence in matches %}
+        {% for m in matches %}
             <li>
-                OCR read: "<i>{{ original }}</i>" →
-                Matched to: <b>{{ matched }}</b>
-                (Confidence: {{ (confidence * 100)|round(1) }}%)
+                <b>{{ m.matched }}</b> (Confidence: {{ (m.confidence * 100)|round(1) }}%)
+                <ul>
+                    <li>OCR read: "<i>{{ m.original }}</i>"</li>
+                    <li>Frequency: {{ m.frequency if m.frequency else "Not detected" }}</li>
+                    <li>Food timing: {{ m.food_timing if m.food_timing else "Not detected" }}</li>
+                    <li>Duration: {{ m.duration_days ~ " days" if m.duration_days else "Not detected" }}</li>
+                </ul>
             </li>
+            <br>
         {% endfor %}
         </ul>
     {% else %}
