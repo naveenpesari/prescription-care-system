@@ -1,8 +1,9 @@
 from flask import Flask, render_template, request
-from models import db
+from models import db, Medicine
 import os
 import pytesseract
 from PIL import Image
+from matcher import find_best_match
 
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
@@ -31,12 +32,28 @@ def upload():
     image = Image.open(save_path)
     extracted_text = pytesseract.image_to_string(image)
 
-    return f"""
-    <h2>File uploaded successfully!</h2>
-    <p><b>Filename:</b> {file.filename}</p>
-    <h3>Extracted Text:</h3>
-    <pre>{extracted_text}</pre>
-    """
+    # Get all medicine names from database
+    all_medicines = Medicine.query.all()
+    medicine_names = [m.name for m in all_medicines]
+
+    # Break OCR text into words/lines, clean them up
+    words = extracted_text.split('\n')
+    words = [w.strip() for w in words if len(w.strip()) > 3]  # ignore very short junk
+
+    # Try matching each line/word against our medicine list
+    matches_found = []
+    seen = set()
+
+    for word in words:
+        best_match, distance, confidence = find_best_match(word, medicine_names)
+        if confidence >= 0.6 and best_match not in seen:  # only good matches
+            matches_found.append((word, best_match, confidence))
+            seen.add(best_match)
+
+    return render_template('result.html',
+                            filename=file.filename,
+                            extracted_text=extracted_text,
+                            matches=matches_found)
 
 if __name__ == '__main__':
     with app.app_context():

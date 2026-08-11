@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Prescription Result</title>
+</head>
+<body>
+    <h1>File uploaded successfully!</h1>
+    <p><b>Filename:</b> {{ filename }}</p>
+
+    <h2>Detected Medicines:</h2>
+    {% if matches %}
+        <ul>
+        {% for original, matched, confidence in matches %}
+            <li>
+                OCR read: "<i>{{ original }}</i>" →
+                Matched to: <b>{{ matched }}</b>
+                (Confidence: {{ (confidence * 100)|round(1) }}%)
+            </li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <p>No confident medicine matches found.</p>
+    {% endif %}
+
+    <h3>Raw Extracted Text (for reference):</h3>
+    <pre>{{ extracted_text }}</pre>
+
+    <br>
+    <a href="/">Upload another prescription</a>
+</body>
+</html>
