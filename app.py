@@ -1,8 +1,9 @@
 from flask import Flask, render_template, request
-from models import db, Medicine
+from models import db, Medicine, Prescription, PrescriptionItem, DoseLog
 import os
 import pytesseract
 from PIL import Image
+from datetime import datetime, timedelta
 from matcher import find_best_match, extract_candidate_words
 from parser import parse_dosage_info
 
@@ -41,7 +42,15 @@ def upload():
     lines = extracted_text.split('\n')
     lines = [l.strip() for l in lines if len(l.strip()) > 3]
 
-    # Try matching each line against our medicine list, and parse dosage info
+    # Create a new Prescription record
+    new_prescription = Prescription(
+        raw_ocr_text=extracted_text,
+        image_path=save_path
+    )
+    db.session.add(new_prescription)
+    db.session.commit()  # commit now so it gets an id
+
+    # Try matching each line, parse dosage info, save to database
     matches_found = []
     seen = set()
 
@@ -61,6 +70,25 @@ def upload():
 
         if confidence >= 0.6 and best_match not in seen:
             dosage_info = parse_dosage_info(line)
+
+            # Find the actual Medicine record to link to
+            medicine_obj = Medicine.query.filter_by(name=best_match).first()
+
+            # Save PrescriptionItem to database
+            new_item = PrescriptionItem(
+                prescription_id=new_prescription.id,
+                medicine_id=medicine_obj.id,
+                matched_confidence=confidence,
+                dosage=dosage_info["frequency"] or "Not specified",
+                frequency=dosage_info["frequency"] or "Not specified",
+                duration_days=dosage_info["duration_days"] or 0
+            )
+            db.session.add(new_item)
+            db.session.commit()  # commit to get new_item.id
+
+            # Create DoseLog entries based on frequency and duration
+            create_dose_logs(new_item, dosage_info)
+
             matches_found.append({
                 "original": line,
                 "matched": best_match,
@@ -75,6 +103,57 @@ def upload():
                             filename=file.filename,
                             extracted_text=extracted_text,
                             matches=matches_found)
+
+
+def create_dose_logs(prescription_item, dosage_info):
+    """
+    Creates DoseLog entries (scheduled reminder times) based on
+    frequency and duration extracted from the prescription.
+    """
+    duration = dosage_info["duration_days"] or 1  # default to 1 day if unknown
+    frequency = dosage_info["frequency"] or ""
+
+    # Map time-of-day words to actual clock hours
+    time_map = {
+        "Morning": 8,
+        "Afternoon": 13,
+        "Evening": 18,
+        "Night": 21
+    }
+
+    # Figure out which times of day apply
+    times_today = []
+    for time_word, hour in time_map.items():
+        if time_word.lower() in frequency.lower():
+            times_today.append(hour)
+
+    # Handle general phrases like "Once daily", "Twice daily"
+    if not times_today:
+        if "once" in frequency.lower():
+            times_today = [9]
+        elif "twice" in frequency.lower():
+            times_today = [9, 21]
+        elif "thrice" in frequency.lower():
+            times_today = [9, 14, 21]
+        else:
+            times_today = [9]  # fallback default
+
+    # Create a DoseLog for each day, for each time slot
+    today = datetime.now().replace(minute=0, second=0, microsecond=0)
+
+    for day_offset in range(duration):
+        dose_date = today + timedelta(days=day_offset)
+        for hour in times_today:
+            scheduled_time = dose_date.replace(hour=hour)
+            dose_log = DoseLog(
+                prescription_item_id=prescription_item.id,
+                scheduled_time=scheduled_time,
+                status="pending"
+            )
+            db.session.add(dose_log)
+
+    db.session.commit()
+
 
 if __name__ == '__main__':
     with app.app_context():
