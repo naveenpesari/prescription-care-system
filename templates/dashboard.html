@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dose Dashboard</title>
+</head>
+<body>
+    <h1>Upcoming Doses</h1>
+
+    {% if doses %}
+        <table border="1" cellpadding="8">
+            <tr>
+                <th>Medicine</th>
+                <th>Scheduled Time</th>
+                <th>Instructions</th>
+                <th>Action</th>
+            </tr>
+            {% for dose in doses %}
+            <tr>
+                <td>{{ dose.medicine_name }}</td>
+                <td>{{ dose.scheduled_time.strftime('%d-%b-%Y %I:%M %p') }}</td>
+                <td>{{ dose.food_timing }}</td>
+                <td><a href="/mark_taken/{{ dose.id }}">Mark as Taken</a></td>
+            </tr>
+            {% endfor %}
+        </table>
+    {% else %}
+        <p>No upcoming doses.</p>
+    {% endif %}
+
+    <br>
+    <a href="/">Upload another prescription</a>
+</body>
+</html>

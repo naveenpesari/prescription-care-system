@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, redirect
 from models import db, Medicine, Prescription, PrescriptionItem, DoseLog
 import os
 import pytesseract
@@ -153,6 +153,34 @@ def create_dose_logs(prescription_item, dosage_info):
             db.session.add(dose_log)
 
     db.session.commit()
+
+
+@app.route('/dashboard')
+def dashboard():
+    # Get all dose logs, ordered by scheduled time (soonest first)
+    upcoming_doses = DoseLog.query.filter_by(status='pending').order_by(DoseLog.scheduled_time).all()
+
+    dose_list = []
+    for dose in upcoming_doses:
+        prescription_item = dose.prescription_item
+        medicine = prescription_item.medicine
+        dose_list.append({
+            "id": dose.id,
+            "medicine_name": medicine.name,
+            "scheduled_time": dose.scheduled_time,
+            "food_timing": prescription_item.dosage
+        })
+
+    return render_template('dashboard.html', doses=dose_list)
+
+
+@app.route('/mark_taken/<int:dose_id>')
+def mark_taken(dose_id):
+    dose = db.session.get(DoseLog, dose_id)
+    if dose:
+        dose.status = 'taken'
+        db.session.commit()
+    return redirect('/dashboard')
 
 
 if __name__ == '__main__':
