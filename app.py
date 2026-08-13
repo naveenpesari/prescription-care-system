@@ -57,8 +57,13 @@ def upload():
     save_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
     file.save(save_path)
 
-    # Run OCR on the uploaded image
+    # Run OCR on the uploaded image (resize first to save memory on limited servers)
     image = Image.open(save_path)
+    max_dimension = 1500
+    if max(image.size) > max_dimension:
+        ratio = max_dimension / max(image.size)
+        new_size = (int(image.width * ratio), int(image.height * ratio))
+        image = image.resize(new_size)
     extracted_text = pytesseract.image_to_string(image)
 
     # Get all medicine names from database
