@@ -7,6 +7,17 @@
     <h1>File uploaded successfully!</h1>
     <p><b>Filename:</b> {{ filename }}</p>
 
+    {% if warnings %}
+        <div style="background-color:#ffe0e0; padding:10px; border:1px solid red;">
+            <h3>⚠️ Drug Interaction Warnings</h3>
+            <ul>
+            {% for w in warnings %}
+                <li><b>{{ w.medicines }}</b>: {{ w.warning }}</li>
+            {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+
     <h2>Detected Medicines:</h2>
     {% if matches %}
         <ul>
@@ -31,6 +42,7 @@
     <pre>{{ extracted_text }}</pre>
 
     <br>
+    <a href="/dashboard">View Dose Dashboard</a> |
     <a href="/">Upload another prescription</a>
 </body>
 </html>

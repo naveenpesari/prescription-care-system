@@ -6,6 +6,7 @@ from PIL import Image
 from datetime import datetime, timedelta
 from matcher import find_best_match, extract_candidate_words
 from parser import parse_dosage_info
+from interactions import check_interactions
 
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
@@ -48,7 +49,7 @@ def upload():
         image_path=save_path
     )
     db.session.add(new_prescription)
-    db.session.commit()  # commit now so it gets an id
+    db.session.commit()
 
     # Try matching each line, parse dosage info, save to database
     matches_found = []
@@ -71,10 +72,8 @@ def upload():
         if confidence >= 0.6 and best_match not in seen:
             dosage_info = parse_dosage_info(line)
 
-            # Find the actual Medicine record to link to
             medicine_obj = Medicine.query.filter_by(name=best_match).first()
 
-            # Save PrescriptionItem to database
             new_item = PrescriptionItem(
                 prescription_id=new_prescription.id,
                 medicine_id=medicine_obj.id,
@@ -84,9 +83,8 @@ def upload():
                 duration_days=dosage_info["duration_days"] or 0
             )
             db.session.add(new_item)
-            db.session.commit()  # commit to get new_item.id
+            db.session.commit()
 
-            # Create DoseLog entries based on frequency and duration
             create_dose_logs(new_item, dosage_info)
 
             matches_found.append({
@@ -99,21 +97,21 @@ def upload():
             })
             seen.add(best_match)
 
+    # Check for drug interactions among matched medicines
+    matched_names = [m["matched"] for m in matches_found]
+    interaction_warnings = check_interactions(matched_names)
+
     return render_template('result.html',
                             filename=file.filename,
                             extracted_text=extracted_text,
-                            matches=matches_found)
+                            matches=matches_found,
+                            warnings=interaction_warnings)
 
 
 def create_dose_logs(prescription_item, dosage_info):
-    """
-    Creates DoseLog entries (scheduled reminder times) based on
-    frequency and duration extracted from the prescription.
-    """
-    duration = dosage_info["duration_days"] or 1  # default to 1 day if unknown
+    duration = dosage_info["duration_days"] or 1
     frequency = dosage_info["frequency"] or ""
 
-    # Map time-of-day words to actual clock hours
     time_map = {
         "Morning": 8,
         "Afternoon": 13,
@@ -121,13 +119,11 @@ def create_dose_logs(prescription_item, dosage_info):
         "Night": 21
     }
 
-    # Figure out which times of day apply
     times_today = []
     for time_word, hour in time_map.items():
         if time_word.lower() in frequency.lower():
             times_today.append(hour)
 
-    # Handle general phrases like "Once daily", "Twice daily"
     if not times_today:
         if "once" in frequency.lower():
             times_today = [9]
@@ -136,9 +132,8 @@ def create_dose_logs(prescription_item, dosage_info):
         elif "thrice" in frequency.lower():
             times_today = [9, 14, 21]
         else:
-            times_today = [9]  # fallback default
+            times_today = [9]
 
-    # Create a DoseLog for each day, for each time slot
     today = datetime.now().replace(minute=0, second=0, microsecond=0)
 
     for day_offset in range(duration):
@@ -157,7 +152,6 @@ def create_dose_logs(prescription_item, dosage_info):
 
 @app.route('/dashboard')
 def dashboard():
-    # Get all dose logs, ordered by scheduled time (soonest first)
     upcoming_doses = DoseLog.query.filter_by(status='pending').order_by(DoseLog.scheduled_time).all()
 
     dose_list = []
