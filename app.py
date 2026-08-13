@@ -2,13 +2,15 @@ from flask import Flask, render_template, request, redirect
 from models import db, Medicine, Prescription, PrescriptionItem, DoseLog
 import os
 import pytesseract
+import platform
 from PIL import Image
 from datetime import datetime, timedelta
 from matcher import find_best_match, extract_candidate_words
 from parser import parse_dosage_info
 from interactions import check_interactions
 
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+if platform.system() == 'Windows':
+    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///prescription.db'
