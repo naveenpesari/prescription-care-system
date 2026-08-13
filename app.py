@@ -20,6 +20,29 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 db.init_app(app)
 
+# Create tables and seed sample medicines on startup (works with Gunicorn too)
+SAMPLE_MEDICINES = [
+    {"name": "Paracetamol", "common_dosage": "500mg"},
+    {"name": "Amoxicillin", "common_dosage": "250mg"},
+    {"name": "Ibuprofen", "common_dosage": "400mg"},
+    {"name": "Cetirizine", "common_dosage": "10mg"},
+    {"name": "Metformin", "common_dosage": "500mg"},
+    {"name": "Amlodipine", "common_dosage": "5mg"},
+    {"name": "Azithromycin", "common_dosage": "500mg"},
+    {"name": "Omeprazole", "common_dosage": "20mg"},
+    {"name": "Pantoprazole", "common_dosage": "40mg"},
+    {"name": "Dolo 650", "common_dosage": "650mg"},
+]
+
+with app.app_context():
+    db.create_all()
+    for med in SAMPLE_MEDICINES:
+        exists = Medicine.query.filter_by(name=med["name"]).first()
+        if not exists:
+            db.session.add(Medicine(name=med["name"], common_dosage=med["common_dosage"]))
+    db.session.commit()
+
+
 @app.route('/')
 def home():
     return render_template('upload.html')
@@ -181,6 +204,4 @@ def mark_taken(dose_id):
 
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
     app.run(debug=True)
